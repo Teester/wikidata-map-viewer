@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<link rel="stylesheet" href="https://unpkg.com/leaflet@1.4.0/dist/leaflet.css" />
+	<script src="https://unpkg.com/leaflet@1.4.0/dist/leaflet.js"></script>
+	<script src="https://npmcdn.com/leaflet.path.drag/src/Path.Drag.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-editable/1.2.0/Leaflet.Editable.min.js"></script>
+	<script src="https://code.jquery.com/jquery-3.3.1.min.js" integrity="sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8=" crossorigin="anonymous"></script>
+	<script src="script.js"></script>
+	<link rel="stylesheet" href="stylesheet.css"/>
+	<title>Wikidata items</title>
+</head>
+
+<body onload="start()">
+	<div class="headercontainer">
+		<div id="titlecontainer">
+			<div class="title">Wikidata Items</div>
+		</div>
+		<div id="checkboxcontainer">
+			Display only changesets marked for review: <input type="checkbox" id="myCheck"  onclick="checkBox()">
+		</div>
+	</div>
+	<div id="mapid"></div>
+	<div id="notescontainer"/>
+</body>
+</html>
