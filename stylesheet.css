@@ -65,7 +65,7 @@ th {
 	display: flex;
 	justify-content: space-between;
 	background-color: #4CAF50;
-	padding: 20px;
+	padding: 10px;
 }
 
 #notescontainer {
@@ -93,7 +93,7 @@ th {
 }
 
 #mapid {
-	height:400px;
+	height:500px;
 	width: 100%;
 	display: block;
 }
