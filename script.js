@@ -3,15 +3,14 @@ var api_url;
 var marker = new Array();
 var bounds;
 var reviewChecked = false;
+var tileLayers = {}
 
 /**
  * Entry point into the script.  Called when the page loads
  **/
 function start() {
-	setupMap();
-	defineQuery()
-	console.log("parse",api_url);
-	//readTextFile(api_url, parseText);
+	initialMapSetup();
+	downloadLayerList();
 }
 
 function checkBox() {
@@ -51,63 +50,114 @@ function setupMap() {
 	var minlat = fields[1] * 1;
 	var maxlong = fields[2] * 1;
 	var maxlat = fields[3] * 1;
-	mymap = L.map("mapid", {editable: true});
-	var OpenStreetMap_Mapnik = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-		maxZoom: 19,
-		attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-	});
+
 	var southwest = new L.latLng(minlat, minlong);
 	var northeast = new L.latLng(maxlat, maxlong);
 	bounds = new L.LatLngBounds([southwest, northeast]);
 	updateLocationBar(minlong, minlat, maxlong, maxlat);
 
-	mymap.fitBounds(bounds);
+	L.control.layers(tileLayers).addTo(mymap);
 
-	OpenStreetMap_Mapnik.addTo(mymap);
-
-	L.EditControl = L.Control.extend({});
-	L.NewRectangleControl = L.EditControl.extend({});
-	var rectangle = L.rectangle([southwest,northeast]).addTo(mymap);
-	rectangle.enableEdit();
-	rectangle.on("editable:dragend editable:vertex:dragend", function() {
-		bounds = this.getBounds();
+	mymap.on("moveend", function(){
+		bounds = mymap.getBounds();
 		updateMap();
+});
+}
+
+function initialMapSetup() {
+	var bbox = getURLParameter('bbox') || "-11.0133787,51.222,-5.6582362,55.636";
+	var fields = bbox.split(',');
+	var minlong = fields[0] * 1;
+	var minlat = fields[1] * 1;
+	var maxlong = fields[2] * 1;
+	var maxlat = fields[3] * 1;
+	var southwest = new L.latLng(minlat, minlong);
+	var northeast = new L.latLng(maxlat, maxlong);
+	bounds = new L.LatLngBounds([southwest, northeast]);
+	mymap = L.map("mapid", {editable: true});
+	mymap.fitBounds(bounds);
+	
+	var OpenStreetMap_Mapnik = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+		attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+	});
+	mymap.addLayer(OpenStreetMap_Mapnik)
+	tileLayers["OSM Mapnik"] = OpenStreetMap_Mapnik;
+}
+
+function downloadLayerList() {
+	
+	let url = "https://osmlab.github.io/editor-layer-index/imagery.geojson"
+
+	$.get(url, function(data, status) { 
+
+		let lat = (bounds.getNorth() + bounds.getSouth()) / 2;
+		let lon = (bounds.getEast() + bounds.getWest()) / 2;
+		let point = [lon, lat]
+		for (feature in data.features) {
+			f = data.features[feature]
+			if (f.geometry) {
+				if (inside(point, f.geometry.coordinates[0])) {
+					tileLayers[f.properties.name] = L.tileLayer(f.properties.url.replace("zoom", "z"))
+				}
+			}
+		}
+		setupMap();
+		defineQuery();
 	});
 }
 
+function inside(point, vs) {
+    // ray-casting algorithm based on
+    // https://wrf.ecse.rpi.edu/Research/Short_Notes/pnpoly.html/pnpoly.html
+    
+    var x = point[0], y = point[1];
+    var inside = false;
+    for (var i = 0, j = vs.length - 1; i < vs.length; j = i++) {
+        var xi = vs[i][0], yi = vs[i][1];
+        var xj = vs[j][0], yj = vs[j][1];
+
+        var intersect = ((yi > y) != (yj > y))
+            && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+        if (intersect) inside = !inside;
+    }
+    return inside;
+};
+
 function updateMap() {
 		updateLocationBar(bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth());
-		var bbox = getURLParameter("bbox")
-		var newurl = "https://api.openstreetmap.org/api/0.6/changesets?bbox=" + bbox
-		mymap.fitBounds(bounds);
 		defineQuery()
 }
 
 function defineQuery() {
-	console.log(bounds.getWest())
 	let nwLatitude = bounds.getNorth()
 	let nwLongitude = bounds.getWest()
 	let seLatitude = bounds.getSouth()
 	let seLongitude = bounds.getEast()
+	let lat = (bounds.getNorth() + bounds.getSouth()) / 2;
+	let lon = (bounds.getEast() + bounds.getWest()) / 2;
 	let sparqlQuery = `SELECT DISTINCT ?place ?placeLabel ?placeDescription ?longitude ?latitude WHERE {  
 						?place p:P625 ?statement. 
 						?statement psv:P625 ?coords. 
 						?coords wikibase:geoLatitude ?latitude. 
 						?coords wikibase:geoLongitude ?longitude. 
-						SERVICE wikibase:box { 
+						SERVICE wikibase:around { 
 							?place wdt:P625 ?location . 
-							bd:serviceParam wikibase:cornerWest "Point(${nwLongitude},${nwLatitude})"^^geo:wktLiteral . 
-							bd:serviceParam wikibase:cornerEast "Point(${seLongitude},${seLatitude})"^^geo:wktLiteral . 
-						} 
+							bd:serviceParam wikibase:center "Point(${lon},${lat})"^^geo:wktLiteral   . 
+							bd:serviceParam wikibase:radius "20" . 
+							bd:serviceParam wikibase:distance ?distance .
+						} .
+						filter (?longitude > ${nwLongitude} )
+						filter (?longitude < ${seLongitude} )
+						filter (?latitude < ${nwLatitude} )
+						filter (?latitude > ${seLatitude} )
 						SERVICE wikibase:label { bd:serviceParam wikibase:language "en" } 
 						} 
-						ORDER BY ?placeLabel
+						ORDER BY ?distance
 						LIMIT 100`
 	let endpointUrl = 'https://query.wikidata.org/sparql?'
 	let settings = { headers: { Accept: 'application/sparql-results+json' }, data: { query: sparqlQuery } }
 
 	$.ajax( endpointUrl, settings ).then( function ( data ) {
-		console.log(data)
 		let html = "<table id='notestable'><thead><th>Entity ID</th><th>Label</th><th>Description</th><th>Longitude</th><th>Latitude</th></thead><tbody>";
 
 		// remove map markers
@@ -126,7 +176,6 @@ function defineQuery() {
 			if ("placeDescription" in data.results.bindings[result]) {
 				description = data.results.bindings[result].placeDescription.value
 			}
-			console.log(description)
 			let id = data.results.bindings[result].place.value
 			let qnumber = id.replace("http://www.wikidata.org/entity/", "")
 			let txt = "";
