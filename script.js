@@ -187,42 +187,45 @@ function defineQuery() {
 	let endpointUrl = 'https://query.wikidata.org/sparql?'
 	let settings = { headers: { Accept: 'application/sparql-results+json' }, data: { query: sparqlQuery } }
 
-	$.ajax( endpointUrl, settings ).then( function ( data ) {
-		let html = "<table id='notestable'><thead><th>Entity ID</th><th>Label</th><th>Description</th><th>Longitude</th><th>Latitude</th></thead><tbody>";
 
+	if (mymap.getZoom() > 12) {
+		$.ajax( endpointUrl, settings ).then( function ( data ) {
+			// remove map markers
+			for(i=0;i<marker.length;i++) {
+				mymap.removeLayer(marker[i]);
+			}
+			marker = []
+			for (let result in data.results.bindings) {
+				let lon = data.results.bindings[result].longitude.value
+				let lat = data.results.bindings[result].latitude.value
+				let place = data.results.bindings[result].placeLabel.value
+				let description = ""
+				if ("placeDescription" in data.results.bindings[result]) {
+					description = data.results.bindings[result].placeDescription.value
+				}
+				let id = data.results.bindings[result].place.value
+				let qnumber = id.replace("http://www.wikidata.org/entity/", "")
+				let myMarker = new L.marker([lat, lon]).bindPopup("<a href='" + id + "'>" + place + " (" + qnumber +")</a><br/>" + description + "<br/>");
+				marker.push(myMarker);
+			}
+			
+			// Add layer of markers to the map
+			var layerGroup = new L.LayerGroup(marker);
+			mymap.addLayer(layerGroup);
+			
+			// Show a warning if 100 items returned
+			if (data.results.bindings.length > 99) {
+				$('#notify').html('Too many wikidata items found.  Displaying the 100 items closest to the centre of the map.').slideDown();
+			} else {
+				$('#notify').slideUp().empty();
+				
+			}
+		} );  
+	} else {
 		// remove map markers
 		for(i=0;i<marker.length;i++) {
 			mymap.removeLayer(marker[i]);
 		}
-		
-		marker = []
-		// remove table
-		$("#notescontainer").empty()
-		for (let result in data.results.bindings) {
-			let lon = data.results.bindings[result].longitude.value
-			let lat = data.results.bindings[result].latitude.value
-			let place = data.results.bindings[result].placeLabel.value
-			let description = ""
-			if ("placeDescription" in data.results.bindings[result]) {
-				description = data.results.bindings[result].placeDescription.value
-			}
-			let id = data.results.bindings[result].place.value
-			let qnumber = id.replace("http://www.wikidata.org/entity/", "")
-			let myMarker = new L.marker([lat, lon]).bindPopup("<a href='" + id + "'>" + place + " (" + qnumber +")</a><br/>" + description + "<br/>");
-			marker.push(myMarker);
-		}
-		html += "</table>"
-		
-		// Add layer of markers to the map
-		var layerGroup = new L.LayerGroup(marker);
-		mymap.addLayer(layerGroup);
-		
-		// Show a warning if 100 items returned
-		if (data.results.bindings.length > 99) {
-			$('#notify').html('Too many wikidata items found.  Displaying the 100 items closest to the centre of the map.').slideDown();
-		} else {
-			$('#notify').slideUp().empty();
-			
-		}
-	} );   
+		$('#notify').html('Zoom in to display wikidata items in the area').slideDown();
+	} 
 }
