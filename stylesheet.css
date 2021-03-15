@@ -2,6 +2,11 @@ body {
 	font-family: ubuntu, sans-serif;
 	padding: 0px;
 	margin: 0px;
+	height: 100%;
+}
+
+html {
+	height: 100%;
 }
 
 table {
@@ -56,13 +61,14 @@ th {
 
 #titlecontainer {
 	padding: 10px;
-	display: inline-block;
+	display: absolute;
 	font-size: 150%;
 	color: #ffffff;
 }
 
 .headercontainer {
 	display: flex;
+	display: absolute;
 	justify-content: space-between;
 	background-color: #4CAF50;
 	padding: 10px;
@@ -93,9 +99,10 @@ th {
 }
 
 #mapid {
-	height:500px;
+	height:100%;
 	width: 100%;
 	display: block;
+    z-index: 1;
 }
 
 #notify {
@@ -109,4 +116,5 @@ th {
     padding:5px;
     line-height:1em;
     cursor:pointer;
+    z-index: 2;
 }
