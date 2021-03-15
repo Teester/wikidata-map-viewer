@@ -97,3 +97,16 @@ th {
 	width: 100%;
 	display: block;
 }
+
+#notify {
+    position:absolute;
+    width:100%;
+    background-color:red;
+    height:20px;
+    color:white;
+    display:none;
+    text-align:center;
+    padding:5px;
+    line-height:1em;
+    cursor:pointer;
+}
