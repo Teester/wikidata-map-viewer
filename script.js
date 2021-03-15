@@ -2,7 +2,7 @@ var mymap;
 var api_url;
 var marker = new Array();
 var bounds;
-var reviewChecked = false;
+var controlLayers;
 var tileLayers = {}
 
 /**
@@ -11,18 +11,11 @@ var tileLayers = {}
 function start() {
 	initialMapSetup();
 	downloadLayerList();
+	
+	setupMap();
+	defineQuery();
 }
 
-function checkBox() {
-	var reviewCheckBox = document.getElementById("myCheck");
-	if (reviewCheckBox.checked == true){
-		reviewChecked = true;
-	} else {
-		reviewChecked = false;
-	}
-
-	updateMap();
-}
 /**
  * Returns the value of the parameter of a url
  **/
@@ -54,10 +47,15 @@ function setupMap() {
 	var southwest = new L.latLng(minlat, minlong);
 	var northeast = new L.latLng(maxlat, maxlong);
 	bounds = new L.LatLngBounds([southwest, northeast]);
-	updateLocationBar(minlong, minlat, maxlong, maxlat);
+	//console.log(controlLayers)
+	//if (controlLayers) {
+	//	controlLayers.removeFrom(mymap)
+	//}
+	//console.log(controlLayers)
 
-	L.control.layers(tileLayers).addTo(mymap);
-
+	//controlLayers = L.control.layers(tileLayers).addTo(mymap);
+	//console.log(controlLayers)
+	updateMap();
 	mymap.on("moveend", function(){
 		bounds = mymap.getBounds();
 		updateMap();
@@ -81,29 +79,60 @@ function initialMapSetup() {
 		attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
 	});
 	mymap.addLayer(OpenStreetMap_Mapnik)
-	tileLayers["OSM Mapnik"] = OpenStreetMap_Mapnik;
+	//tileLayers["OSM Mapnik"] = OpenStreetMap_Mapnik;
 }
 
 function downloadLayerList() {
-	
-	let url = "https://osmlab.github.io/editor-layer-index/imagery.geojson"
-
-	$.get(url, function(data, status) { 
-
-		let lat = (bounds.getNorth() + bounds.getSouth()) / 2;
-		let lon = (bounds.getEast() + bounds.getWest()) / 2;
-		let point = [lon, lat]
-		for (feature in data.features) {
-			f = data.features[feature]
-			if (f.geometry) {
-				if (inside(point, f.geometry.coordinates[0])) {
-					tileLayers[f.properties.name] = L.tileLayer(f.properties.url.replace("zoom", "z"))
-				}
-			}
+	tileLayers = {}
+	if (typeof(Storage) !== "undefined") {
+		if (localStorage.layers) {
+			processLayer(JSON.parse(localStorage.layers));
+		} else {
+			getLayerList();
 		}
-		setupMap();
-		defineQuery();
+	} else {
+		getLayerList();
+	}
+}
+
+function getLayerList() {
+	let url = "https://osmlab.github.io/editor-layer-index/imagery.geojson"
+	
+	$.get(url, function(data, status) { 
+		processLayer(data.features)
+		if (typeof(Storage) !== "undefined") {
+			localStorage.layers = JSON.stringify(data.features);
+		}
 	});
+}
+
+function processLayer(features) {
+	let lat = (bounds.getNorth() + bounds.getSouth()) / 2;
+	let lon = (bounds.getEast() + bounds.getWest()) / 2;
+	let point = [lon, lat]
+	var OpenStreetMap_Mapnik = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+		attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+	});
+	tileLayers["OSM Mapnik"] = OpenStreetMap_Mapnik;
+	for (feature in features) {
+		f = features[feature]
+		
+		let attribution = ""
+		if (f.properties.attribution) {
+			attribution = "<a href='" + f.properties.attribution.url + "'>" + f.properties.attribution.text + "</a>";
+		}
+		let url = f.properties.url.replace("zoom", "z");
+		let server = ""
+		url = url.replace("{switch:a,b,c}", "{s}")
+		url = url.replace(/{switch:([^,}])[^}]*}/, '$1')
+		if (f.geometry) {
+			if (inside(point, f.geometry.coordinates[0])) {	
+				tileLayers[f.properties.name] = L.tileLayer(url, {'attribution': attribution, 'max-zoom': f.properties.max_zoom, 'max-native-zoom': 22 })
+			}
+		} else {
+			tileLayers[f.properties.name] = L.tileLayer(url, {'attribution': attribution, 'max-zoom': f.properties.max_zoom, 'max-native-zoom': 22 })
+		}
+	}
 }
 
 function inside(point, vs) {
@@ -124,8 +153,12 @@ function inside(point, vs) {
 };
 
 function updateMap() {
-		updateLocationBar(bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth());
-		defineQuery()
+	updateLocationBar(bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth());
+	downloadLayerList();
+	$('.leaflet-control-layers').first().remove();;
+	L.control.layers(tileLayers).addTo(mymap);
+	
+	defineQuery()
 }
 
 function defineQuery() {
@@ -194,5 +227,13 @@ function defineQuery() {
 		// Add layer of markers to the map
 		var layerGroup = new L.LayerGroup(marker);
 		mymap.addLayer(layerGroup);
+		
+		// Show a warning if 100 items returned
+		if (data.results.bindings.length > 99) {
+			$('#notify').html('Too many wikidata items found.  Displaying the 100 items closest to the centre of the map.').slideDown();
+		} else {
+			$('#notify').slideUp().empty();
+			
+		}
 	} );   
 }
