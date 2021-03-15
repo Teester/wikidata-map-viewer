@@ -47,19 +47,16 @@ function setupMap() {
 	var southwest = new L.latLng(minlat, minlong);
 	var northeast = new L.latLng(maxlat, maxlong);
 	bounds = new L.LatLngBounds([southwest, northeast]);
-	//console.log(controlLayers)
-	//if (controlLayers) {
-	//	controlLayers.removeFrom(mymap)
-	//}
-	//console.log(controlLayers)
-
-	//controlLayers = L.control.layers(tileLayers).addTo(mymap);
-	//console.log(controlLayers)
+	
 	updateMap();
 	mymap.on("moveend", function(){
 		bounds = mymap.getBounds();
 		updateMap();
-});
+	});
+	mymap.on("zoomend", function(){
+		bounds = mymap.getBounds();
+		updateMap();
+	});
 }
 
 function initialMapSetup() {
@@ -127,10 +124,10 @@ function processLayer(features) {
 		url = url.replace(/{switch:([^,}])[^}]*}/, '$1')
 		if (f.geometry) {
 			if (inside(point, f.geometry.coordinates[0])) {	
-				tileLayers[f.properties.name] = L.tileLayer(url, {'attribution': attribution, 'max-zoom': f.properties.max_zoom, 'max-native-zoom': 22 })
+				tileLayers[f.properties.name] = L.tileLayer(url, {'attribution': attribution, 'minZoom': f.properties.min_zoom, 'maxNativeZoom': f.properties.max_zoom, 'maxZoom': 22 })
 			}
 		} else {
-			tileLayers[f.properties.name] = L.tileLayer(url, {'attribution': attribution, 'max-zoom': f.properties.max_zoom, 'max-native-zoom': 22 })
+			tileLayers[f.properties.name] = L.tileLayer(url, {'attribution': attribution, 'minZoom': f.properties.min_zoom, 'maxNativeZoom': f.properties.max_zoom, 'maxZoom': 22 })
 		}
 	}
 }
@@ -211,19 +208,11 @@ function defineQuery() {
 			}
 			let id = data.results.bindings[result].place.value
 			let qnumber = id.replace("http://www.wikidata.org/entity/", "")
-			let txt = "";
-			txt += "<tr class='toplevel' id ='" + id + "'><td class='changesetId'><a href='" + id + "'>" + qnumber + "</a></td>";
-			txt += "<td class='changesetTime'><span title='" + id + "'>"+ place + "</span></td>";
-			txt += "<td class='changesetTime'><span title='" + id + "'>"+ description + "</span></td>";
-			txt += "<td class='changesetComment'>" + lon + "</td>";
-			txt += "<td class='changesetCreated'>" + lat + "</td>";
-			txt += "</tr>";
-			html += txt
-			let myMarker = new L.marker([lat, lon]).bindPopup("<a href='" + id + "'>" + place + "</a><br/>");
+			let myMarker = new L.marker([lat, lon]).bindPopup("<a href='" + id + "'>" + place + " (" + qnumber +")</a><br/>" + description + "<br/>");
 			marker.push(myMarker);
 		}
 		html += "</table>"
-		$("#notescontainer").append(html);
+		
 		// Add layer of markers to the map
 		var layerGroup = new L.LayerGroup(marker);
 		mymap.addLayer(layerGroup);
