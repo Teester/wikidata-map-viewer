@@ -3,6 +3,17 @@ var marker = new Array();
 var controlLayers;
 var tileLayers = {};
 
+$(document).ready(function(){
+	$(document).on("mouseover", ".row" , function() {
+		let qnumber = $(this).attr("id");
+		$("#" + qnumber + ".leaflet-marker-icon").attr("src", "marker-icon-2x-red.png");
+	});
+	$(document).on("mouseout", ".row" , function() {
+		let qnumber = $(this).attr("id");
+		$("#" + qnumber + ".leaflet-marker-icon").attr("src", "https://tools-static.wmflabs.org/cdnjs/ajax/libs/leaflet/1.7.1/images/marker-icon.png");
+	});
+});
+
 /**
  * Entry point into the script.  Called when the page loads
  **/
@@ -13,6 +24,18 @@ function start() {
 	updateMap();
 	defineQuery();
 }
+
+/* Set the width of the sidebar to 250px and the left margin of the page content to 250px */
+function openNav() {
+	if ($("#mySidebar").width() == 0) {
+		$("#mySidebar").width(250);
+		$("#mapid").css("marginLeft", "250px");
+	} else {
+		$("#mySidebar").width(0);
+		$("#mapid").css("marginLeft", "0px");
+	}
+}
+
 
 /**
  * Returns the value of the parameter of a url
@@ -96,7 +119,6 @@ function processLayer(features) {
 		if (f.properties.type == "tms") {
 			if (f.geometry) {
 				if (inside(point, f.geometry.coordinates[0])) {	
-			console.log(f.properties)
 					tileLayers[f.properties.name] = L.tileLayer(url, {'attribution': attribution, 'minZoom': f.properties.min_zoom, 'maxNativeZoom': f.properties.max_zoom, 'maxZoom': 22 });
 				}
 			} else {
@@ -165,7 +187,10 @@ function defineQuery() {
 			for(i=0;i<marker.length;i++) {
 				mymap.removeLayer(marker[i]);
 			}
-			marker = []
+			$("#details").empty()
+
+			markers = {}
+			html = ""
 			for (let result in data.results.bindings) {
 				let item = data.results.bindings[result];
 				let lon = item.longitude.value;
@@ -178,13 +203,17 @@ function defineQuery() {
 				let id = item.place.value;
 				let qnumber = id.replace("http://www.wikidata.org/entity/", "");
 				let markerText = "<a href='" + id + "'>" + place + " (" + qnumber +")</a><br/>" + description + "<br/>";
-				let myMarker = new L.marker([lat, lon], {}).bindPopup(markerText);
-				marker.push(myMarker);
+				
+				markers[qnumber] = new L.marker([lat, lon], {}).bindPopup(markerText).addTo(mymap);
+				markers[qnumber]._icon.id = qnumber;
+				html += "<tr><td class='row' id='"+qnumber+"'><span class='table-place'><a href='" + id + "'>"+ place + "</span><span class='table-qnumber'> ("+qnumber+")</span></a><br/><span class='table-description'>" + description +"</span></td></tr>"
 			}
 			
-			// Add layer of markers to the map
-			var layerGroup = new L.LayerGroup(marker);
-			mymap.addLayer(layerGroup);
+			// Add table of results to the sidebar
+			let header = "<table><th>Entities</th>"
+			let footer = "</table>"
+			html = header + html + footer;
+			$("#details").append(html);
 			
 			// Show a warning if 100 items returned
 			if (data.results.bindings.length > 99) {
@@ -199,6 +228,8 @@ function defineQuery() {
 		for(i=0;i<marker.length;i++) {
 			mymap.removeLayer(marker[i]);
 		}
+		$("#details").empty()
 		$('#notify').html('Zoom in to display wikidata items in the area').slideDown();
 	} 
 }
+
