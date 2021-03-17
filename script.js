@@ -1,18 +1,16 @@
 var mymap;
-var api_url;
 var marker = new Array();
-var bounds;
 var controlLayers;
-var tileLayers = {}
+var tileLayers = {};
 
 /**
  * Entry point into the script.  Called when the page loads
  **/
 function start() {
-	initialMapSetup();
+	setupMap();
 	downloadLayerList();
 	
-	setupMap();
+	updateMap();
 	defineQuery();
 }
 
@@ -24,63 +22,40 @@ function getURLParameter(name) {
 }
 
 /**
- * Changes the location bar value to reflect the current bounding box
+ * Changes the location bar value to reflect the current location
  **/
-function updateLocationBar(minlong, minlat, maxlong, maxlat) {
-	var urlparameters = "?bbox=" +minlong + "," + minlat + "," +  maxlong + "," +  maxlat;
+function updateLocationBar(lat, lon, zoom) {
+	var urlparameters = "?lat=" + lat + "&lon=" + lon + "&zoom=" + zoom;
 	var newurl = window.location.protocol + "//" + window.location.host + window.location.pathname + urlparameters;
 	window.history.pushState({path:newurl},"",newurl);
 }
 
 /**
- * Prepares the map and adds the bounding box according to the url in the urlbar
+ * Prepares the map and adds the location according to the url in the urlbar
  **/
 function setupMap() {
-	var bbox = getURLParameter('bbox') || "-11.0133787,51.222,-5.6582362,55.636";
-	api_url = "https://api.openstreetmap.org/api/0.6/changesets?bbox=" + bbox
-	var fields = bbox.split(',');
-	var minlong = fields[0] * 1;
-	var minlat = fields[1] * 1;
-	var maxlong = fields[2] * 1;
-	var maxlat = fields[3] * 1;
-
-	var southwest = new L.latLng(minlat, minlong);
-	var northeast = new L.latLng(maxlat, maxlong);
-	bounds = new L.LatLngBounds([southwest, northeast]);
+	var lon = getURLParameter('lon') || "0";
+	var lat = getURLParameter('lat') || "52";
+	var zoom = getURLParameter('zoom') || "7";
 	
-	updateMap();
-	mymap.on("moveend", function(){
-		bounds = mymap.getBounds();
-		updateMap();
-	});
-	mymap.on("zoomend", function(){
-		bounds = mymap.getBounds();
-		updateMap();
-	});
-}
-
-function initialMapSetup() {
-	var bbox = getURLParameter('bbox') || "-11.0133787,51.222,-5.6582362,55.636";
-	var fields = bbox.split(',');
-	var minlong = fields[0] * 1;
-	var minlat = fields[1] * 1;
-	var maxlong = fields[2] * 1;
-	var maxlat = fields[3] * 1;
-	var southwest = new L.latLng(minlat, minlong);
-	var northeast = new L.latLng(maxlat, maxlong);
-	bounds = new L.LatLngBounds([southwest, northeast]);
-	mymap = L.map("mapid", {editable: true});
-	mymap.fitBounds(bounds);
+	mymap = L.map("mapid", {});
+	mymap.setView([lat, lon], zoom);
 	
 	var OpenStreetMap_Mapnik = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 		attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
 	});
-	mymap.addLayer(OpenStreetMap_Mapnik)
-	//tileLayers["OSM Mapnik"] = OpenStreetMap_Mapnik;
+	mymap.addLayer(OpenStreetMap_Mapnik);
+	
+	mymap.on("moveend", function(){
+		updateMap();
+	});
+	mymap.on("zoomend", function(){
+		updateMap();
+	});
 }
 
 function downloadLayerList() {
-	tileLayers = {}
+	tileLayers = {};
 	if (typeof(Storage) !== "undefined") {
 		if (localStorage.layers) {
 			processLayer(JSON.parse(localStorage.layers));
@@ -93,10 +68,10 @@ function downloadLayerList() {
 }
 
 function getLayerList() {
-	let url = "https://osmlab.github.io/editor-layer-index/imagery.geojson"
+	let url = "https://osmlab.github.io/editor-layer-index/imagery.geojson";
 	
 	$.get(url, function(data, status) { 
-		processLayer(data.features)
+		processLayer(data.features);
 		if (typeof(Storage) !== "undefined") {
 			localStorage.layers = JSON.stringify(data.features);
 		}
@@ -104,30 +79,29 @@ function getLayerList() {
 }
 
 function processLayer(features) {
-	let lat = (bounds.getNorth() + bounds.getSouth()) / 2;
-	let lon = (bounds.getEast() + bounds.getWest()) / 2;
-	let point = [lon, lat]
+	let point = [mymap.getCenter().lng, mymap.getCenter().lat];
 	var OpenStreetMap_Mapnik = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 		attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
 	});
 	tileLayers["OSM Mapnik"] = OpenStreetMap_Mapnik;
+
 	for (feature in features) {
-		f = features[feature]
-		
-		let attribution = ""
+		let attribution = "";
+		let f = features[feature];
 		if (f.properties.attribution) {
 			attribution = "<a href='" + f.properties.attribution.url + "'>" + f.properties.attribution.text + "</a>";
 		}
 		let url = f.properties.url.replace("zoom", "z");
-		let server = ""
-		url = url.replace("{switch:a,b,c}", "{s}")
-		url = url.replace(/{switch:([^,}])[^}]*}/, '$1')
-		if (f.geometry) {
-			if (inside(point, f.geometry.coordinates[0])) {	
-				tileLayers[f.properties.name] = L.tileLayer(url, {'attribution': attribution, 'minZoom': f.properties.min_zoom, 'maxNativeZoom': f.properties.max_zoom, 'maxZoom': 22 })
+		url = url.replace(/{switch:([^,}])[^}]*}/, '$1');
+		if (f.properties.type == "tms") {
+			if (f.geometry) {
+				if (inside(point, f.geometry.coordinates[0])) {	
+			console.log(f.properties)
+					tileLayers[f.properties.name] = L.tileLayer(url, {'attribution': attribution, 'minZoom': f.properties.min_zoom, 'maxNativeZoom': f.properties.max_zoom, 'maxZoom': 22 });
+				}
+			} else {
+				tileLayers[f.properties.name] = L.tileLayer(url, {'attribution': attribution, 'minZoom': f.properties.min_zoom, 'maxNativeZoom': f.properties.max_zoom, 'maxZoom': 22 });
 			}
-		} else {
-			tileLayers[f.properties.name] = L.tileLayer(url, {'attribution': attribution, 'minZoom': f.properties.min_zoom, 'maxNativeZoom': f.properties.max_zoom, 'maxZoom': 22 })
 		}
 	}
 }
@@ -150,21 +124,18 @@ function inside(point, vs) {
 };
 
 function updateMap() {
-	updateLocationBar(bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth());
+	updateLocationBar(mymap.getCenter().lat, mymap.getCenter().lng, mymap.getZoom());
 	downloadLayerList();
 	$('.leaflet-control-layers').first().remove();;
 	L.control.layers(tileLayers).addTo(mymap);
 	
-	defineQuery()
+	defineQuery();
 }
 
 function defineQuery() {
-	let nwLatitude = bounds.getNorth()
-	let nwLongitude = bounds.getWest()
-	let seLatitude = bounds.getSouth()
-	let seLongitude = bounds.getEast()
-	let lat = (bounds.getNorth() + bounds.getSouth()) / 2;
-	let lon = (bounds.getEast() + bounds.getWest()) / 2;
+	let bounds = mymap.getBounds();
+	let centre = mymap.getCenter();
+	
 	let sparqlQuery = `SELECT DISTINCT ?place ?placeLabel ?placeDescription ?longitude ?latitude WHERE {  
 						?place p:P625 ?statement. 
 						?statement psv:P625 ?coords. 
@@ -172,20 +143,20 @@ function defineQuery() {
 						?coords wikibase:geoLongitude ?longitude. 
 						SERVICE wikibase:around { 
 							?place wdt:P625 ?location . 
-							bd:serviceParam wikibase:center "Point(${lon},${lat})"^^geo:wktLiteral   . 
+							bd:serviceParam wikibase:center "Point(${centre.lng},${centre.lat})"^^geo:wktLiteral   . 
 							bd:serviceParam wikibase:radius "20" . 
 							bd:serviceParam wikibase:distance ?distance .
 						} .
-						filter (?longitude > ${nwLongitude} )
-						filter (?longitude < ${seLongitude} )
-						filter (?latitude < ${nwLatitude} )
-						filter (?latitude > ${seLatitude} )
+						filter (?longitude > ${bounds.getWest()} )
+						filter (?longitude < ${bounds.getEast()} )
+						filter (?latitude < ${bounds.getNorth()} )
+						filter (?latitude > ${bounds.getSouth()} )
 						SERVICE wikibase:label { bd:serviceParam wikibase:language "en" } 
 						} 
 						ORDER BY ?distance
 						LIMIT 100`
-	let endpointUrl = 'https://query.wikidata.org/sparql?'
-	let settings = { headers: { Accept: 'application/sparql-results+json' }, data: { query: sparqlQuery } }
+	let endpointUrl = 'https://query.wikidata.org/sparql?';
+	let settings = { headers: { Accept: 'application/sparql-results+json' }, data: { query: sparqlQuery } };
 
 
 	if (mymap.getZoom() > 12) {
@@ -196,16 +167,18 @@ function defineQuery() {
 			}
 			marker = []
 			for (let result in data.results.bindings) {
-				let lon = data.results.bindings[result].longitude.value
-				let lat = data.results.bindings[result].latitude.value
-				let place = data.results.bindings[result].placeLabel.value
-				let description = ""
-				if ("placeDescription" in data.results.bindings[result]) {
-					description = data.results.bindings[result].placeDescription.value
+				let item = data.results.bindings[result];
+				let lon = item.longitude.value;
+				let lat = item.latitude.value;
+				let place = item.placeLabel.value;
+				let description = "";
+				if ("placeDescription" in item) {
+					description = item.placeDescription.value;
 				}
-				let id = data.results.bindings[result].place.value
-				let qnumber = id.replace("http://www.wikidata.org/entity/", "")
-				let myMarker = new L.marker([lat, lon]).bindPopup("<a href='" + id + "'>" + place + " (" + qnumber +")</a><br/>" + description + "<br/>");
+				let id = item.place.value;
+				let qnumber = id.replace("http://www.wikidata.org/entity/", "");
+				let markerText = "<a href='" + id + "'>" + place + " (" + qnumber +")</a><br/>" + description + "<br/>";
+				let myMarker = new L.marker([lat, lon], {}).bindPopup(markerText);
 				marker.push(myMarker);
 			}
 			
