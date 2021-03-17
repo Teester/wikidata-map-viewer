@@ -13,7 +13,8 @@ html {
 	height:100%;
 	width: 100%;
 	display: block;
-    z-index: 1;
+	z-index: 1;
+	transition: margin-left .5s; /* If you want a transition effect */
 }
 
 #notify {
@@ -43,4 +44,64 @@ html {
     font-size: 16px;
     color: #222;
     text-shadow: 1px 1px 3px #fff;
+}
+
+ /* The sidebar menu */
+.sidebar {
+  height: 100%; /* 100% Full-height */
+  width: 0; /* 0 width - change this with JavaScript */
+  position: fixed; /* Stay in place */
+  z-index: 1; /* Stay on top */
+  top: 0;
+  left: 0;
+  background-color: white; 
+  overflow-x: hidden; /* Disable horizontal scroll */
+  padding-top: 10px; /* Place content 10px from the top */
+  transition: 0.5s; /* 0.5 second transition effect to slide in the sidebar */
+}
+
+/* Position and style the close button (top right corner) */
+.sidebar .closebtn {
+  position: absolute;
+  top: 0;
+  right: 25px;
+  font-size: 36px;
+  margin-left: 50px;
+}
+
+/* The button used to open the sidebar */
+.openbtn {
+	position: absolute;
+	top: 75px;
+	left: 10px;
+	cursor: pointer;
+	background-color: white;
+	color: black;
+	padding: 5px 9px;
+	border: #bbb 2px solid;
+	z-index: 10000;
+	border-radius:2px;
+	font: bold 18px 'Lucida Console', Monaco, monospace;
+}
+
+/* On smaller screens, where height is less than 450px, change the style of the sidenav (less padding and a smaller font size) */
+@media screen and (max-height: 450px) {
+  .sidebar {padding-top: 15px;}
+  .sidebar a {font-size: 18px;}
+} 
+
+.table-qnumber {
+	font-size: 10px;
+}
+
+.table-place {
+	font-size: 14px;
+}
+
+.table-description {
+	font-size: 10px;
+}
+
+.row:hover {
+	background: #eee;
 }
