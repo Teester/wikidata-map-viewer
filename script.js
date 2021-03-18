@@ -1,5 +1,5 @@
 var mymap;
-var marker = new Array();
+var markers = {};
 var controlLayers;
 var tileLayers = {};
 
@@ -184,8 +184,8 @@ function defineQuery() {
 	if (mymap.getZoom() > 12) {
 		$.ajax( endpointUrl, settings ).then( function ( data ) {
 			// remove map markers
-			for(i=0;i<marker.length;i++) {
-				mymap.removeLayer(marker[i]);
+			for (let marker in markers) {
+				mymap.removeLayer(markers[marker]);
 			}
 			$("#details").empty()
 
@@ -225,8 +225,8 @@ function defineQuery() {
 		} );  
 	} else {
 		// remove map markers
-		for(i=0;i<marker.length;i++) {
-			mymap.removeLayer(marker[i]);
+		for (let marker in markers) {
+			mymap.removeLayer(markers[marker]);
 		}
 		$("#details").empty()
 		$('#notify').html('Zoom in to display wikidata items in the area').slideDown();
