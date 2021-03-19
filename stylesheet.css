@@ -70,7 +70,6 @@ html {
 	height: 34px;
 	line-height: 34px;
 	text-align: center;
-	text-indent: 1px;
 	cursor: pointer;
 	background-color: white;
 	background-clip: padding-box;
@@ -78,7 +77,7 @@ html {
 	border: rgba(0, 0, 0, 0.2) 2px solid;
 	z-index: 10000;
 	border-radius:4px;
-	font: normal 22px 'Lucida Console', Monaco, monospace;
+	font: normal 18px 'Lucida Console', Monaco, monospace;
 }
 
 /* On smaller screens, where height is less than 450px, change the style of the sidenav (less padding and a smaller font size) */
