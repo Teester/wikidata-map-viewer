@@ -63,11 +63,12 @@ function setupMap() {
 	
 	mymap = L.map("mapid", {});
 	mymap.setView([lat, lon], zoom);
+	L.control.scale().addTo(mymap);
 	
-	var OpenStreetMap_Mapnik = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-		attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+	var wikimedia_Map = L.tileLayer('https://maps.wikimedia.org/osm-intl/{z}/{x}/{y}.png', {
+		attribution: '<a href="https://www.openstreetmap.org/">© OpenStreetMap contributors, CC-BY-SA</a>'
 	});
-	mymap.addLayer(OpenStreetMap_Mapnik);
+	mymap.addLayer(wikimedia_Map);
 	
 	mymap.on("moveend", function(){
 		updateMap();
@@ -103,10 +104,10 @@ function getLayerList() {
 
 function processLayer(features) {
 	let point = [mymap.getCenter().lng, mymap.getCenter().lat];
-	var OpenStreetMap_Mapnik = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-		attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+	var wikimedia_Map = L.tileLayer('https://maps.wikimedia.org/osm-intl/{z}/{x}/{y}.png', {
+		attribution: '<a href="https://www.openstreetmap.org/">© OpenStreetMap contributors, CC-BY-SA</a>'
 	});
-	tileLayers["OSM Mapnik"] = OpenStreetMap_Mapnik;
+	tileLayers["Wikimedia Map"] = wikimedia_Map;
 
 	for (feature in features) {
 		let attribution = "";
@@ -146,6 +147,7 @@ function inside(point, vs) {
 };
 
 function updateMap() {
+	
 	updateLocationBar(mymap.getCenter().lat, mymap.getCenter().lng, mymap.getZoom());
 	downloadLayerList();
 	$('.leaflet-control-layers').first().remove();;
@@ -210,7 +212,7 @@ function defineQuery() {
 			}
 			
 			// Add table of results to the sidebar
-			let header = "<table><th>Entities</th>"
+			let header = "<table><th>Wikidata Entities</th>"
 			let footer = "</table>"
 			html = header + html + footer;
 			$("#details").append(html);
