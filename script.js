@@ -110,20 +110,29 @@ function processLayer(features) {
 	tileLayers["Wikimedia Map"] = wikimedia_Map;
 
 	for (feature in features) {
+
 		let attribution = "";
 		let f = features[feature];
 		if (f.properties.attribution) {
 			attribution = "<a href='" + f.properties.attribution.url + "'>" + f.properties.attribution.text + "</a>";
 		}
 		let url = f.properties.url.replace("zoom", "z");
-		url = url.replace(/{switch:([^,}])[^}]*}/, '$1');
+		let match = url.match(/{switch:([^,}])[^}]*}/)
+		url = url.replace(/{switch:([^,}])[^}]*}/, '{s}');
+		if (match) {
+			match = match[0].replace("}", "")
+			match = match.replace("{switch:", "")
+			match = match.split(",")
+		} else {
+			match = "";
+		}
 		if (f.properties.type == "tms") {
 			if (f.geometry) {
 				if (inside(point, f.geometry.coordinates[0])) {	
-					tileLayers[f.properties.name] = L.tileLayer(url, {'attribution': attribution, 'minZoom': f.properties.min_zoom, 'maxNativeZoom': f.properties.max_zoom, 'maxZoom': 22 });
+					tileLayers[f.properties.name] = L.tileLayer(url, {'attribution': attribution, 'minZoom': f.properties.min_zoom, 'maxNativeZoom': f.properties.max_zoom, 'maxZoom': 22, 'subdomains': match });
 				}
 			} else {
-				tileLayers[f.properties.name] = L.tileLayer(url, {'attribution': attribution, 'minZoom': f.properties.min_zoom, 'maxNativeZoom': f.properties.max_zoom, 'maxZoom': 22 });
+				tileLayers[f.properties.name] = L.tileLayer(url, {'attribution': attribution, 'minZoom': f.properties.min_zoom, 'maxNativeZoom': f.properties.max_zoom, 'maxZoom': 22, 'subdomains': match });
 			}
 		}
 	}
@@ -150,7 +159,20 @@ function updateMap() {
 	
 	updateLocationBar(mymap.getCenter().lat, mymap.getCenter().lng, mymap.getZoom());
 	downloadLayerList();
-	$('.leaflet-control-layers').first().remove();;
+	$('.leaflet-control-layers').first().remove();
+	
+	let currentlayer = {};
+	mymap.eachLayer(function (layer) {
+		if (layer._url) {
+			currentLayer = layer;
+		}
+	});
+	for (layer in tileLayers) {
+		if (currentLayer._url == tileLayers[layer]._url) {
+			mymap.addLayer(tileLayers[layer]);
+			mymap.removeLayer(currentLayer);
+		}
+	}
 	L.control.layers(tileLayers).addTo(mymap);
 	
 	defineQuery();
@@ -191,8 +213,8 @@ function defineQuery() {
 			}
 			$("#details").empty()
 
-			markers = {}
-			html = ""
+			markers = {};
+			let sortable = [];
 			for (let result in data.results.bindings) {
 				let item = data.results.bindings[result];
 				let lon = item.longitude.value;
@@ -208,7 +230,20 @@ function defineQuery() {
 				
 				markers[qnumber] = new L.marker([lat, lon], {}).bindPopup(markerText).addTo(mymap);
 				markers[qnumber]._icon.id = qnumber;
-				html += "<tr><td class='row' id='"+qnumber+"'><span class='table-place'><a href='" + id + "'>"+ place + "</span><span class='table-qnumber'> ("+qnumber+")</span></a><br/><span class='table-description'>" + description +"</span></td></tr>"
+				let htmlChunk = "<tr><td class='row' id='"+qnumber+"'><span class='table-place'><a href='" + id + "'>"+ place + "</span><span class='table-qnumber'> ("+qnumber+")</span></a><br/><span class='table-description'>" + description +"</span></td></tr>"
+				sortable.push([place, htmlChunk])
+			}
+			
+			let html = "";
+
+			sortable = sortable.sort(function(a, b) {
+				if(a[0] < b[0]) { return -1; }
+				if(a[0] > b[0]) { return 1; }
+				return 0;
+			});
+
+			for (let item in sortable) {
+				html += sortable[item][1];
 			}
 			
 			// Add table of results to the sidebar
@@ -233,5 +268,6 @@ function defineQuery() {
 		$("#details").empty()
 		$('#notify').html('Zoom in to display wikidata items in the area').slideDown();
 	} 
+	
 }
 
