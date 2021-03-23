@@ -13,12 +13,18 @@
 
 <body onload="start()">
 	<div id="mySidebar" class="sidebar">
+		<div class="container" id="settingsContainer">
+			<div class="autocomplete">
+				<input type="text" id="parliament" class="input" placeholder="Limit results to…">
+				<span id="clear_button" onclick="clearSearch()">✕</span>
+			</div>
+		</div>
 		<div id="details"></div>
 	</div>
 	<div id="notify"></div>
 	<div id="mapid">
 		<div id="crosshair">+</div>
-		<button class="openbtn" onclick="openNav()" title="Click to toggle item list">&#9776;</button>
+		
 	</div>
 </body>
 </html>
