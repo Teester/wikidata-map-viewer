@@ -2,8 +2,12 @@ var mymap;
 var markers = {};
 var controlLayers;
 var tileLayers = {};
+var overlays = {};
+var property = "wdt:P31/wdt:P279*";
+var P31 = "";
 
 $(document).ready(function(){
+	autocomplete(document.getElementById("parliament"));
 	$(document).on("mouseover", ".row" , function() {
 		let qnumber = $(this).attr("id");
 		$("#" + qnumber + ".leaflet-marker-icon").attr("src", "marker-icon-2x-red.png");
@@ -34,6 +38,7 @@ function openNav() {
 		$("#mySidebar").width(0);
 		$("#mapid").css("marginLeft", "0px");
 	}
+	updateMap();
 }
 
 
@@ -64,7 +69,8 @@ function setupMap() {
 	mymap = L.map("mapid", {});
 	mymap.setView([lat, lon], zoom);
 	L.control.scale().addTo(mymap);
-	
+	$('.leaflet-top.leaflet-left').append('<button class="openbtn" onclick="openNav()" title="Click to toggle sidebar">&#9776;</button>');
+
 	var wikimedia_Map = L.tileLayer('https://maps.wikimedia.org/osm-intl/{z}/{x}/{y}.png', {
 		attribution: '<a href="https://www.openstreetmap.org/">© OpenStreetMap contributors, CC-BY-SA</a>'
 	});
@@ -108,7 +114,8 @@ function processLayer(features) {
 		attribution: '<a href="https://www.openstreetmap.org/">© OpenStreetMap contributors, CC-BY-SA</a>'
 	});
 	tileLayers["Wikimedia Map"] = wikimedia_Map;
-
+	let overlayList = ["photo", "map", "osmbasedmap", "elevation", "historicmap", "historicphoto"]
+	
 	for (feature in features) {
 
 		let attribution = "";
@@ -126,13 +133,35 @@ function processLayer(features) {
 		} else {
 			match = "";
 		}
+		
+		let tileLayer = L.tileLayer(url, {'attribution': attribution, 'minZoom': f.properties.min_zoom, 'maxNativeZoom': f.properties.max_zoom, 'maxZoom': 22, 'subdomains': match });
 		if (f.properties.type == "tms") {
 			if (f.geometry) {
 				if (inside(point, f.geometry.coordinates[0])) {	
-					tileLayers[f.properties.name] = L.tileLayer(url, {'attribution': attribution, 'minZoom': f.properties.min_zoom, 'maxNativeZoom': f.properties.max_zoom, 'maxZoom': 22, 'subdomains': match });
+					if (overlayList.includes(f.properties.category)) {
+						if (f.properties.name.includes("overlay")) {
+							overlays[f.properties.name] = tileLayer 
+						} else if (f.properties.name.includes("Overlay")) {
+							overlays[f.properties.name] = tileLayer
+						} else {
+							tileLayers[f.properties.name] = tileLayer;
+						}
+					} else {
+						overlays[f.properties.name] = tileLayer
+					}
 				}
 			} else {
-				tileLayers[f.properties.name] = L.tileLayer(url, {'attribution': attribution, 'minZoom': f.properties.min_zoom, 'maxNativeZoom': f.properties.max_zoom, 'maxZoom': 22, 'subdomains': match });
+				if (overlayList.includes(f.properties.category)) {
+					if (f.properties.name.includes("overlay")) {
+						overlays[f.properties.name] = tileLayer
+					} else if (f.properties.name.includes("Overlay")) {
+							overlays[f.properties.name] = tileLayer
+					} else {
+						tileLayers[f.properties.name] = tileLayer;
+					}
+				} else {
+					overlays[f.properties.name] = tileLayer
+				}
 			}
 		}
 	}
@@ -165,32 +194,57 @@ function updateMap() {
 	mymap.eachLayer(function (layer) {
 		if (layer._url) {
 			currentLayer = layer;
+			mymap.removeLayer(layer);
 		}
+		
 	});
 	for (layer in tileLayers) {
 		if (currentLayer._url == tileLayers[layer]._url) {
 			mymap.addLayer(tileLayers[layer]);
-			mymap.removeLayer(currentLayer);
 		}
 	}
-	L.control.layers(tileLayers).addTo(mymap);
+	L.control.layers(tileLayers, overlays).addTo(mymap);
 	
 	defineQuery();
 }
 
+function calcCrow(lat1, lon1, lat2, lon2) {
+      var R = 6371; // km
+      var dLat = toRad(lat2-lat1);
+      var dLon = toRad(lon2-lon1);
+      var lat1 = toRad(lat1);
+      var lat2 = toRad(lat2);
+
+      var a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+        Math.sin(dLon/2) * Math.sin(dLon/2) * Math.cos(lat1) * Math.cos(lat2); 
+      var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+      var d = R * c;
+      return d;
+    }
+
+// Converts numeric degrees to radians
+function toRad(Value) {
+    return Value * Math.PI / 180;
+}
+    
 function defineQuery() {
 	let bounds = mymap.getBounds();
 	let centre = mymap.getCenter();
-	
-	let sparqlQuery = `SELECT DISTINCT ?place ?placeLabel ?placeDescription ?longitude ?latitude WHERE {  
-						?place p:P625 ?statement. 
+	let variable = ``
+	if (P31 != "") {
+		variable = "?place " + property + " wd:" + P31 + "."
+	}
+	let radius = calcCrow(bounds.getNorth(), bounds.getWest(), bounds.getSouth(), bounds.getEast())/2;
+	console.log(radius)
+	let header = `SELECT DISTINCT ?place ?placeLabel ?placeDescription ?longitude ?latitude WHERE {  `
+	let footer = `		?place p:P625 ?statement. 
 						?statement psv:P625 ?coords. 
 						?coords wikibase:geoLatitude ?latitude. 
 						?coords wikibase:geoLongitude ?longitude. 
 						SERVICE wikibase:around { 
 							?place wdt:P625 ?location . 
 							bd:serviceParam wikibase:center "Point(${centre.lng},${centre.lat})"^^geo:wktLiteral   . 
-							bd:serviceParam wikibase:radius "20" . 
+							bd:serviceParam wikibase:radius "${radius}" . 
 							bd:serviceParam wikibase:distance ?distance .
 						} .
 						filter (?longitude > ${bounds.getWest()} )
@@ -201,20 +255,22 @@ function defineQuery() {
 						} 
 						ORDER BY ?distance
 						LIMIT 100`
+						
+	let sparqlQuery = header + variable + footer;
 	let endpointUrl = 'https://query.wikidata.org/sparql?';
 	let settings = { headers: { Accept: 'application/sparql-results+json' }, data: { query: sparqlQuery } };
 
 
-	if (mymap.getZoom() > 12) {
+	if (radius < 100) {
 		$.ajax( endpointUrl, settings ).then( function ( data ) {
 			// remove map markers
 			for (let marker in markers) {
 				mymap.removeLayer(markers[marker]);
 			}
 			$("#details").empty()
-
 			markers = {};
 			let sortable = [];
+			let items = {};
 			for (let result in data.results.bindings) {
 				let item = data.results.bindings[result];
 				let lon = item.longitude.value;
@@ -227,13 +283,13 @@ function defineQuery() {
 				let id = item.place.value;
 				let qnumber = id.replace("http://www.wikidata.org/entity/", "");
 				let markerText = "<a href='" + id + "'>" + place + " (" + qnumber +")</a><br/>" + description + "<br/>";
+				marker = new L.marker([lat, lon], {}).bindPopup(markerText)
 				
 				markers[qnumber] = new L.marker([lat, lon], {}).bindPopup(markerText).addTo(mymap);
 				markers[qnumber]._icon.id = qnumber;
 				let htmlChunk = "<tr><td class='row' id='"+qnumber+"'><span class='table-place'><a href='" + id + "'>"+ place + "</span><span class='table-qnumber'> ("+qnumber+")</span></a><br/><span class='table-description'>" + description +"</span></td></tr>"
 				sortable.push([place, htmlChunk])
 			}
-			
 			let html = "";
 
 			sortable = sortable.sort(function(a, b) {
@@ -247,7 +303,7 @@ function defineQuery() {
 			}
 			
 			// Add table of results to the sidebar
-			let header = "<table><th>Wikidata Entities</th>"
+			let header = "<table><th>" + data.results.bindings.length + " Wikidata Entities</th>"
 			let footer = "</table>"
 			html = header + html + footer;
 			$("#details").append(html);
@@ -257,7 +313,6 @@ function defineQuery() {
 				$('#notify').html('Too many wikidata items found.  Displaying the 100 items closest to the centre of the map.').slideDown();
 			} else {
 				$('#notify').slideUp().empty();
-				
 			}
 		} );  
 	} else {
@@ -271,3 +326,123 @@ function defineQuery() {
 	
 }
 
+function clearSearch() {
+	$("#parliament").val("")
+	P31 = "";
+	updateMap();
+}
+
+/**
+ * This function handles all aspects of Autocomplete
+ * 
+ **/
+function autocomplete(inp) {
+	console.log("in autocomplete")
+	/*the autocomplete function takes two arguments,
+	the text field element and an array of possible autocompleted values:*/
+	var currentFocus;
+	/*execute a function when someone writes in the text field:*/
+	inp.addEventListener("input", function(e) {
+		var a, b, i, val = this.value;
+		/*close any already open lists of autocompleted values*/
+		closeAllLists();
+		if (!val) { return false;}
+		currentFocus = -1;
+		/*create a DIV element that will contain the items (values):*/
+		a = document.createElement("DIV");
+		a.setAttribute("id", this.id + "autocomplete-list");
+		a.setAttribute("class", "autocomplete-items");
+		/*append the DIV element as a child of the autocomplete container:*/
+		this.parentNode.appendChild(a);
+		if (val.length>2){
+			// get array
+			$.ajax({
+				type: "GET",
+				dataType: "json",
+				url: "https://www.wikidata.org/w/api.php?action=wbsearchentities&search="+val+"&language=en&origin=*&format=json",
+				success: function(data){
+					var arr = data.search;
+					/*for each item in the array...*/
+					for (var j = 0; j < arr.length; j++) {
+						/*check if the item starts with the same letters as the text field value:*/
+						/*create a DIV element for each matching element:*/
+						b = document.createElement("DIV");
+						/*make the matching letters bold:*/
+						b.innerHTML = "<span class='autocomplete-label'>" + arr[j].label + "</span>";
+						if (arr[j].description) {
+							b.innerHTML += "<br/><span class='description'>" + arr[j].description + "</span>";
+						}
+						/*insert a input field that will hold the current array item's value:*/
+						b.innerHTML += "<input type='hidden' value='" + arr[j].label + "' title='" + arr[j].id + "'>";
+						b.innerHTML += "<input type='hidden' value='" + arr[j].id + "'>";
+						/*execute a function when someone clicks on the item value (DIV element):*/
+						b.addEventListener("click", function(f) {
+							/*insert the value for the autocomplete text field:*/
+							inp.value = this.getElementsByTagName("input")[0].value;
+							inp.setAttribute("wikidata", this.getElementsByTagName("input")[1].value);
+							P31 = this.getElementsByTagName("input")[1].value
+							updateMap();
+							closeAllLists();
+						});
+						a.appendChild(b);
+					}
+				} 
+			});
+		}	
+	});
+	/*execute a function presses a key on the keyboard:*/
+	inp.addEventListener("keydown", function(e) {
+		var x = document.getElementById(this.id + "autocomplete-list");
+		if (x) x = x.getElementsByTagName("div");
+		if (e.keyCode == 40) {
+			/*If the arrow DOWN key is pressed,
+			increase the currentFocus variable:*/
+			currentFocus++;
+			/*and and make the current item more visible:*/
+			addActive(x);
+		} else if (e.keyCode == 38) { //up
+			/*If the arrow UP key is pressed,
+			decrease the currentFocus variable:*/
+			currentFocus--;
+			/*and and make the current item more visible:*/
+			addActive(x);
+		} else if (e.keyCode == 13) {
+			/*If the ENTER key is pressed, prevent the form from being submitted,*/
+			e.preventDefault();
+			if (currentFocus > -1) {
+				/*and simulate a click on the "active" item:*/
+				if (x) x[currentFocus].click();
+			}
+		}
+	});
+	function addActive(x) {
+		/*a function to classify an item as "active":*/
+		if (!x) return false;
+		/*start by removing the "active" class on all items:*/
+		removeActive(x);
+		if (currentFocus >= x.length) currentFocus = 0;
+		if (currentFocus < 0) currentFocus = (x.length - 1);
+		/*add class "autocomplete-active":*/
+		x[currentFocus].classList.add("autocomplete-active");
+	}
+	function removeActive(x) {
+		/*a function to remove the "active" class from all autocomplete items:*/
+		for (var i = 0; i < x.length; i++) {
+			x[i].classList.remove("autocomplete-active");
+		}
+	}
+	function closeAllLists(elmnt) {
+		/*close all autocomplete lists in the document,
+		except the one passed as an argument:*/
+		var x = document.getElementsByClassName("autocomplete-items");
+		for (var i = 0; i < x.length; i++) {
+			if (elmnt != x[i] && elmnt != inp) {
+				x[i].parentNode.removeChild(x[i]);
+			}
+		}
+	}
+	/*execute a function when someone clicks in the document:*/
+	document.addEventListener("click", function (e) {
+		closeAllLists(e.target);
+	});
+} 
